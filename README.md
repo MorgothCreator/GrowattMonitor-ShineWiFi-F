@@ -51,3 +51,8 @@ The time of the onboard RTC is automatically updated every start/restart of the 
 In order to upload for the first time the firmware you need to power up the dongle with the two pins marked as boot shorted, after that you can use the usb connector of the dongle and a USB-RS232 adapter because the USB connector of the dongle toes not carry USB signals, instead they carry RS232 rx/tx signals, or you can use an USB-UART adapter wired to the onboard header where the rx/tx and ground is marked accordingly.
 
 After that you can use the OTA for further updates.
+
+![first-time-upload](https://raw.githubusercontent.com/MorgothCreator/GrowattMonitor-ShineWiFi-F/main/assets/ShineWiFi-F_Board.jpeg)
+
+![page](https://raw.githubusercontent.com/MorgothCreator/GrowattMonitor-ShineWiFi-F/main/assets/screenshot.png)
+
