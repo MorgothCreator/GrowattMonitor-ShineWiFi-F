@@ -51,6 +51,12 @@ extern char PowerSourceStatus[];
 extern double PV_PowerLoad;
 extern double Battery_PowerLoad;
 
+extern uint32_t faultCode;
+extern uint32_t warningCode;
+extern uint16_t systemStatus;
+extern uint8_t chargePriority;
+
+
 typedef struct {
   float Grid_voltage;
   float Grid_frequency;

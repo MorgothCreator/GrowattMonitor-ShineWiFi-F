@@ -1,9 +1,9 @@
-#ifndef __DEF_H__
-#define __DEF_H__
+#ifndef __DEF_H___
+#define __DEF_H___
 
 #include "credentials.h"
 
-#define USE_INTERNAL_SPIFFS   false
+#define USE_INTERNAL_SPIFFS   true
 #define USE_SPIFFS_LOG        false
 #define USE_HTTPS             false
 
@@ -37,7 +37,7 @@ enum {
   DISCONNECTED,
   CONNECTING,
   CONNECTED
-} WiFiState = DISCONNECTED;
+} ScetchWiFiState = DISCONNECTED;
 
 #define LED1_BLUE     16// BLUE
 #define LED5_RED      2 // RED
@@ -45,7 +45,8 @@ enum {
 
 #define LOG_BUFF_LEN    4096
 
-#define OTA_NAME "OTA-GROWATT5000ES-1"
+#define MDNS_NAME "shinewifi1"
+#define OTA_NAME "OTA-GROWATT5000ES-2"
 // OTA password "OTA_PASS" is defined in "credentials.h" file.
 
 #endif

@@ -4,9 +4,9 @@
 // Rtc_Pcf8563 by Joe Robertson
 // NTPClient by Fabrice Weinberg
 
-
 #include <ESP8266WiFi.h>
 #include <WiFiClient.h>
+#include "def.h"
 #if USE_HTTPS
 #include <ESP8266WebServerSecure.h>
 #include "crt.h"
@@ -28,9 +28,8 @@
 
 #include "mainWebPage.h"
 #include "pv.h"
+#include "dataLog.h"
 #include "report.h"
-
-#include "def.h"
 
 const int analogInPin = A0;  // ESP8266 Analog Pin ADC0 = A0
 int analogValue = 0;
@@ -70,19 +69,6 @@ void printTime() {
   rtc.getDay(), rtc.getMonth(), rtc.getYear(), 
   weekDays[rtc.getWeekday()].c_str());
   reportAppendLn("");
-}
-
-//format bytes
-String formatBytes(size_t bytes){
-  if (bytes < 1024){
-    return String(bytes)+"B";
-  } else if(bytes < (1024 * 1024)){
-    return String(bytes/1024.0)+"KB";
-  } else if(bytes < (1024 * 1024 * 1024)){
-    return String(bytes/1024.0/1024.0)+"MB";
-  } else {
-    return String(bytes/1024.0/1024.0/1024.0)+"GB";
-  }
 }
 
 File updateLogFile;
@@ -154,12 +140,14 @@ void setup(void){
 #endif
 /*********************************************/
   PV_Init();
+  Log_Init();
   PV_triggerDataRead();
   wifiConnectingTimer.Start();
 }
 
 void loop(void){
   PV_Loop();
+  Log_Loop("pvlog/", &rtc);
 /*********************************************/
   if(analogScanTimer.Tick()) {
     analogValue = analogRead(analogInPin);
@@ -172,7 +160,7 @@ void loop(void){
     }
   }
 /*********************************************/
-  switch (WiFiState) {
+  switch (ScetchWiFiState) {
     case DISCONNECTED:
       digitalWrite(LED6_GREEN, 0);
       reportAppendLn("");
@@ -180,7 +168,7 @@ void loop(void){
       reportAppend("Connecting to ");
       reportAppendLn(wiFiCredentials[wiFiCredentialsCnt].ssid);
       WiFi.begin(wiFiCredentials[wiFiCredentialsCnt].ssid, wiFiCredentials[wiFiCredentialsCnt].password);
-      WiFiState = CONNECTING;
+      ScetchWiFiState = CONNECTING;
       wiFiCredentialsCnt++;
       if(wiFiCredentials[wiFiCredentialsCnt].ssid[0] == 0) {
         wiFiCredentialsCnt = 0;
@@ -193,18 +181,21 @@ void loop(void){
         digitalWrite(LED6_GREEN, wifiConnectStatusState);
         reportAppend(".");
         if(!wiFiConnectRetryCnt--) {
-          WiFiState = DISCONNECTED;
+          ScetchWiFiState = DISCONNECTED;
         }
       }
       if (WiFi.status() == WL_CONNECTED) {
-        WiFiState = CONNECTED;
+        ScetchWiFiState = CONNECTED;
         digitalWrite(LED6_GREEN, 1);
         reportAppendLn("");
         reportAppendLn("WiFi connected");
         // Print the IP address
         reportAppendLn((char *)WiFi.localIP().toString().c_str());
-        if (MDNS.begin("esp8266")) {
+        delay(100);
+        if (MDNS.begin(MDNS_NAME)) {
           reportAppendLn("MDNS responder started");
+          // Add service to MDNS-SD
+          MDNS.addService("http", "tcp", 80);        
         }
 #if USE_HTTPS
         configTime(3 * 3600, 0, "pool.ntp.org", "time.nist.gov");
@@ -215,116 +206,13 @@ void loop(void){
         server.on(F("/"), handleRoot);
         server.on(F("/report"), handleReport);
 #if USE_INTERNAL_SPIFFS
-        server.on(F("/browser"), [](){
+        server.on(F("/pvlog"), []() {
           if(server.argName(0).equals("ls")) {
-            server.setContentLength(CONTENT_LENGTH_UNKNOWN);
-            server.send(200, "text/plain", "");
-            Dir dir = SPIFFS.openDir(server.arg(0).c_str());
-            while (dir.next()) {
-              File entry = dir.openFile("r");
-              char tmpBuf[128];
-              String content;
-              if(entry) {
-                content = "FS File: ";
-                content += entry.name();
-                content += ", size: ";
-                content += formatBytes(entry.size());
-                content += "\n";
-                server.sendContent(content);
-                entry.close();
-              } else {
-                content = "FS File: ";
-                content += dir.fileName();
-                content += ", size: ";
-                content += formatBytes(dir.fileSize());
-                content += "\n";
-                server.sendContent(content);
-              }
-            }
-            server.sendContent("OK.\n");
-            server.client().stop();
-          } else if(server.argName(0).equals("new")) {
-            if(SPIFFS.exists(server.arg(0))) {
-              server.send(200, "text/plain", "Already exists.");      
-            } else {
-              File file = SPIFFS.open(server.arg(0), "w");
-              if(file) {
-                if(server.argName(1).equals("content")) {
-                  file.write((uint8_t *)server.arg(1).c_str(), server.arg(1).length());
-                }
-                file.close();
-                server.setContentLength(CONTENT_LENGTH_UNKNOWN);
-                server.send(200, "text/plain", "");
-                server.sendContent(server.arg(0));
-                server.sendContent("\nCreated.");
-                server.client().stop();
-              } else {
-                server.send(200, "text/plain", "Failed.");
-              }
-            }
-          } else if(server.argName(0).equals("append")) {
-            if(!SPIFFS.exists(server.arg(0)))
-              server.send(200, "text/plain", "FileNotFound.");
-            else {
-              File file = SPIFFS.open(server.arg(0), "a");
-              if(file) {
-                if(server.argName(1).equals("content")) {
-                  file.write((uint8_t *)server.arg(1).c_str(), server.arg(1).length());
-                }
-                file.close();
-                server.setContentLength(CONTENT_LENGTH_UNKNOWN);
-                server.send(200, "text/plain", "");
-                server.sendContent(server.arg(0));
-                server.sendContent("\nAppended.");
-                server.client().stop();
-              } else {
-                server.send(200, "text/plain", "Failed.");
-              }
-            }
-          } else if(server.argName(0).equals("rm")) {
-            if(!SPIFFS.exists(server.arg(0)))
-              server.send(200, "text/plain", "FileNotFound.");
-            else {
-              if(SPIFFS.remove(server.arg(0))) {
-                server.setContentLength(CONTENT_LENGTH_UNKNOWN);
-                server.send(200, "text/plain", "");
-                server.sendContent(server.arg(0));
-                server.sendContent("\nRemoved.");
-                server.client().stop();
-              } else {
-                server.send(200, "text/plain", "Failed.");
-              }
-            }
-          } else if(server.argName(0).equals("format")) {
-            server.setContentLength(CONTENT_LENGTH_UNKNOWN);
-            server.send(200, "text/plain", "");
-            server.sendContent("Formating\n");
-            server.client().flush();
-            SPIFFS.format();
-            server.sendContent("Done.");
-            server.client().stop();
-          } else if(server.argName(0).equals("read")) {
-            if(!SPIFFS.exists(server.arg(0))) {
-              server.send(200, "text/plain", "Not exists.");      
-            } else {
-              File file = SPIFFS.open(server.arg(0), "r");
-              if(file.size()) {
-                server.setContentLength(CONTENT_LENGTH_UNKNOWN);
-                server.send(200, "text/plain", "");
-                char tmpBuf[256];
-                while(1) {
-                  int rd = file.read((uint8_t *)tmpBuf, sizeof(tmpBuf));
-                  if(rd > 0) {
-                    server.sendContent(tmpBuf, rd);
-                    server.client().flush();
-                  } else
-                    break;
-                }
-                server.client().stop();
-              } else {
-                server.send(200, "text/plain", "File is empty.");
-              }
-            }
+            sendLogsName(&server);
+          } else if(server.argName(0).equals("get")) {
+            decodeSendLogData(&server);
+          } else if(server.argName(0).equals("len")) {
+            sendLogLen(&server);
           } else {
             server.send(200, "text/plain", "Unknown command");            
           }
@@ -437,7 +325,7 @@ void loop(void){
     case CONNECTED:
       if (WiFi.status() != WL_CONNECTED) {
         reportAppendLn("WiFi disconnected");
-        WiFiState = DISCONNECTED;
+        ScetchWiFiState = DISCONNECTED;
       } else {
         ArduinoOTA.handle();
         server.handleClient();

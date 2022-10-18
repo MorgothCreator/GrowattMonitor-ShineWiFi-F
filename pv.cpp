@@ -48,11 +48,15 @@ static void getModbus(unsigned short *array, int len) {
 		array[i] = ((array[i] >> 8) & 0xFF) | ((array[i] << 8) & 0xFF00);
 	}
 }
+
+uint32_t faultCode = 0;
+uint32_t warningCode = 0;
+uint16_t systemStatus = 0;
+uint8_t chargePriority = 0;
+
 		
-		
-int lastFault = 0;
-int lastWarning = 0;
-short systemStatus = 0;
+static uint32_t lastFault = 0;
+static uint32_t lastWarning = 0;
 
 double Grid_voltage=220;
 double Grid_frequency=50.00;
@@ -233,8 +237,8 @@ void PV_Loop() {
 		memset(MPPT_CPU_version, 0, sizeof(MPPT_CPU_version));
 		memset(Date_of_manufacture, 0, sizeof(Date_of_manufacture));
 		
-		unsigned short *holdingReg = PV_getHoldingReg();
-		unsigned short *inputReg = PV_getInputReg();
+		uint16_t *holdingReg = PV_getHoldingReg();
+		uint16_t *inputReg = PV_getInputReg();
 		
 		Inverter_CPU_version[0] = holdingReg[9] >> 8;
 		Inverter_CPU_version[1] = holdingReg[9];
@@ -276,8 +280,8 @@ void PV_Loop() {
 		Model[0] = modelNumberInt & 0x0F;
 		
 		bool charging = rsdf(inputReg, 77, 10) < 0 ? 1 : 0;
-		int faultCode = inputReg[42];
-		int warningCode = inputReg[43];
+		faultCode = inputReg[42];
+		warningCode = inputReg[43];
 			
 		Grid_voltage = rssf(inputReg, 20, 10);
 		Grid_frequency = rssf(inputReg, 21, 100);
@@ -530,6 +534,7 @@ void PV_Loop() {
 			break;
 		}
 		
+    chargePriority = holdingReg[2];
 		switch(holdingReg[2]) {
 			case 0:
 				strcpy(Charge_priority, "PV First");
