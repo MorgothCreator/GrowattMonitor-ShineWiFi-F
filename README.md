@@ -175,4 +175,10 @@ After that you can use the OTA and Arduino IDE for further updates.
 
 ![first-time-upload](https://raw.githubusercontent.com/MorgothCreator/GrowattMonitor-ShineWiFi-F/main/assets/ShineWiFi-F_Board.jpeg)
 
+#TODO :
+* Implementing a webpage with history charts.
+* Implementing a FTP server to manage log files.
+* A management page.
+
+Any new feature to implement? I will be glad to hear about your ideas.
 
